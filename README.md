@@ -7,6 +7,7 @@ SDIO 本身是一个功能强大的万能驱动安装工具，但默认需要手
 - **开机自动检测** — 系统启动/还原后 30 秒，自动扫描并安装打印机驱动
 - **插入实时检测** — USB 打印机插入后约 13 秒，自动匹配并安装驱动
 - **三级回退** — 本地 .inf 静默安装 → SDIO 脚本模式 → SDIO GUI 手动装
+- **网络打印机** — 通过 config.ini 配置网络打印机，自动创建端口、安装驱动、添加打印机
 - **不改 SDIO 源码** — 纯包装层，利用 SDIO 现有的脚本引擎
 
 典型场景：医院、学校、企业等大量终端设备需要不定期接入不同型号打印机，且系统盘会定期还原的环境。
@@ -73,6 +74,10 @@ powershell -ExecutionPolicy Bypass -File C:\PrinterDrivers\setup_scheduled_task.
                         ▼
          阶段5: 开机触发 → 弹出 SDIO GUI 手动装
                  插入触发 → 记日志，不弹GUI，下次开机重试
+                        │
+                        ▼
+         阶段6: 网络打印机安装（根据 config.ini 配置）
+                 创建 TCP/IP 端口 → 注册驱动 → 添加打印机
 ```
 
 ---
@@ -81,7 +86,7 @@ powershell -ExecutionPolicy Bypass -File C:\PrinterDrivers\setup_scheduled_task.
 
 | 文件 | 用途 | 运行时角色 |
 |------|------|-----------|
-| `config.ini` | 配置文件 | 指定 DataDir（数据目录）和日志保留天数 |
+| `config.ini` | 配置文件 | 指定 DataDir（数据目录）、日志保留天数，以及网络打印机配置 |
 | `auto_install_printer.ps1` | 主安装脚本 | 每次触发时执行，支持 `-OnInsert` 参数 |
 | `auto_printer.txt` | SDIO 脚本文件 | 阶段4回退时由 SDIO 加载执行 |
 | `pack_drivers.ps1` | 驱动打包工具 | 仅部署阶段使用，将 .inf 目录打成 .7z |
@@ -208,6 +213,12 @@ Get-ChildItem D:\PrinterDrivers\logs -Filter "install_*.log" | Sort LastWriteTim
 # 查看当前连接的打印机
 Get-PnpDevice -Class Printer | Select FriendlyName, InstanceId
 
+# 查看已安装的网络打印机
+Get-Printer | Select Name, DriverName, PortName
+
+# 查看已注册的打印机驱动
+Get-PrinterDriver | Select Name
+
 # 删除所有任务
 Unregister-ScheduledTask -TaskName "AutoInstallPrinterDriver" -Confirm:$false
 Unregister-ScheduledTask -TaskName "AutoInstallPrinterDriver_OnInsert" -Confirm:$false
@@ -218,6 +229,13 @@ Unregister-ScheduledTask -TaskName "AutoInstallPrinterDriver_OnInsert" -Confirm:
 1. 将驱动文件放到**数据盘** `D:\PrinterDrivers\drivers\新打印机型号\`
 2. 重新运行打包：`powershell -ExecutionPolicy Bypass -File C:\PrinterDrivers\pack_drivers.ps1`
 3. 无需更新镜像（驱动在数据盘，不受还原影响）
+
+### 添加网络打印机
+
+1. 将驱动文件放到**数据盘** `D:\PrinterDrivers\drivers\打印机型号\`
+2. 编辑 `config.ini`，添加一个新的 `[Section]`（如 `[NP3]`），填写 Name、IP、Driver 字段
+3. 重新运行打包：`powershell -ExecutionPolicy Bypass -File C:\PrinterDrivers\pack_drivers.ps1`
+4. 手动触发或等下次开机自动安装：`schtasks /Run /TN "AutoInstallPrinterDriver"`
 
 ---
 
@@ -252,6 +270,23 @@ DataDir=D:\PrinterDrivers
 
 # 日志保留天数（超过此天数的日志自动删除）
 LogRetainDays=30
+
+# ─── 网络打印机（可选）───────────────────────────────────────
+# 每台网络打印机一个段，段名自定（如 [NP1]、[HP_M402] 等）
+# Name   = 打印机名称（显示名，也用于检查是否已安装）
+# IP     = 打印机 IP 地址
+# Driver = 驱动名称（需与 .inf 中注册的驱动名一致，也是 drivers\ 下的子目录名）
+# Port   = 端口号（可选，默认 9100）
+
+[NP1]
+Name=HP LaserJet 1020
+IP=192.168.1.100
+Driver=HP LaserJet 1020
+
+[NP2]
+Name=Canon LBP6230dn
+IP=192.168.1.101
+Driver=Canon LBP6230dn
 ```
 
 ### 配置项说明
@@ -260,6 +295,21 @@ LogRetainDays=30
 |--------|----------|--------|------|
 | `DataDir` | 否 | 脚本同目录 | 运行时数据的存放目录。该目录下会自动创建 `drivers\`（.inf 驱动源文件）、`SDIO\drivers\`（.7z 驱动包）、`SDIO\indexes\`（SDIO 索引）和 `logs\`（安装日志） |
 | `LogRetainDays` | 否 | `30` | 日志保留天数，每次运行时自动清理超期日志 |
+
+### 网络打印机配置
+
+在 `config.ini` 中用 `[段名]` 定义网络打印机，每台打印机一个段，段名随意（如 `[NP1]`、`[HP_M402]`）。每个段包含以下字段：
+
+| 字段 | 是否必填 | 说明 |
+|------|----------|------|
+| `Name` | 是 | 打印机显示名称，也用于判断是否已安装（与 `Get-Printer` 匹配） |
+| `IP` | 是 | 打印机 IP 地址 |
+| `Driver` | 是 | 驱动名称，需与 `drivers\` 下的子目录名一致，也是 .inf 中注册的驱动名 |
+| `Port` | 否 | TCP 端口号，默认 `9100`（标准 RAW 打印端口） |
+
+脚本每次运行时自动检查已配置的打印机是否存在，不存在则自动创建 TCP/IP 端口、注册驱动、添加打印机。驱动文件需提前放入 `DataDir\drivers\{Driver名称}\` 目录下。
+
+> 网络打印机安装在开机触发和 USB 插入触发时都会执行，且独立于 USB 打印机流程——即使没有 USB 打印机连接，也会处理网络打印机。
 
 ### 两种部署模式
 
@@ -328,4 +378,6 @@ D:\PrinterDrivers\        ← DataDir（持久化盘）
 
 5. **SDIO 驱动包命名**：若只想通过 SDIO 安装打印机驱动（排除其他设备），将 .7z 包命名为 `DRP_Printer_xxx.7z`，并修改 `auto_printer.txt` 中 `select missing` 为 `select missing printer`。
 
-6. **不支持网络打印机**：本方案仅处理 USB 直连打印机，网络打印机需另行部署。
+6. **网络打印机**：支持通过 config.ini 的 `[Section]` 配置网络打印机（TCP/IP 直连），脚本自动创建端口、注册驱动、添加打印机。仅支持 RAW 协议（端口 9100），不支持 LPR 或 SMB 共享打印机。
+
+7. **驱动名称匹配**：网络打印机的 `Driver` 字段必须与 .inf 文件中注册的驱动名称完全一致（包括大小写和空格），否则 `Add-PrinterDriver` 会报错。可通过 `Get-PrinterDriver` 查看已注册的驱动名。
