@@ -3,8 +3,9 @@
 .SYNOPSIS
     将裸 .inf 驱动目录打包为 SDIO 兼容的 .7z 驱动包
 .DESCRIPTION
-    遍历脚本所在目录下 drivers\ 的每个子目录，
-    将其打包为 .7z 文件放入 SDIO 的 drivers 目录。
+    遍历 DataDir\drivers\ 的每个子目录，
+    将其打包为 .7z 文件放入 DataDir\SDIO\drivers\ 目录。
+    支持 BaseDir/DataDir 分盘部署。
 .NOTES
     前提：SDIO 已安装，7z.exe 可用（SDIO 自带或系统已装）
 #>
@@ -18,12 +19,18 @@ if (-not (Test-Path $ConfigFile)) {
 }
 
 $BaseDir = $null
+$DataDir = $null
 foreach ($line in Get-Content $ConfigFile -Encoding UTF8) {
     $line = $line.Trim()
     if ($line -eq '' -or $line.StartsWith('#')) { continue }
     $parts = $line -split '=', 2
     if ($parts.Count -ne 2) { continue }
-    if ($parts[0].Trim() -eq 'BaseDir') { $BaseDir = $parts[1].Trim() }
+    $key = $parts[0].Trim()
+    $val = $parts[1].Trim()
+    switch ($key) {
+        'BaseDir' { $BaseDir = $val }
+        'DataDir' { $DataDir = $val }
+    }
 }
 
 if (-not $BaseDir) {
@@ -31,9 +38,12 @@ if (-not $BaseDir) {
     exit 1
 }
 
-$SourceDir = "$BaseDir\drivers"
-$SDIODir   = "$BaseDir\SDIO"
-$OutputDir = "$SDIODir\drivers"  # SDIO 的驱动包目录
+# DataDir 未设置时与 BaseDir 相同
+if (-not $DataDir) { $DataDir = $BaseDir }
+
+$SourceDir = "$DataDir\drivers"          # .inf 源文件（数据盘）
+$SDIODir   = "$BaseDir\SDIO"             # SDIO 程序目录（程序盘，找 7z.exe）
+$OutputDir = "$DataDir\SDIO\drivers"     # .7z 输出到数据盘
 
 # 查找 7z 可执行文件
 $7zExe = $null

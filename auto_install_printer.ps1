@@ -7,7 +7,8 @@
     失败时回退到 SDIO 脚本模式安装，仍失败则弹出 SDIO GUI 供手动操作。
     支持 -OnInsert 参数，由 USB 设备插入事件触发时使用。
 .NOTES
-    所有路径由 config.ini 配置文件指定（BaseDir），部署位置灵活
+    所有路径由 config.ini 配置文件指定：BaseDir（脚本/程序）、DataDir（驱动/日志）
+    支持程序和数据分盘部署，适配系统还原场景
     config.ini 需与本脚本放在同一目录下
     需要管理员权限运行
 #>
@@ -28,6 +29,7 @@ if (-not (Test-Path $ConfigFile)) {
 }
 
 $BaseDir       = $null
+$DataDir       = $null
 $LogRetainDays = 30
 
 foreach ($line in Get-Content $ConfigFile -Encoding UTF8) {
@@ -39,6 +41,7 @@ foreach ($line in Get-Content $ConfigFile -Encoding UTF8) {
     $val = $parts[1].Trim()
     switch ($key) {
         'BaseDir'       { $BaseDir       = $val }
+        'DataDir'       { $DataDir       = $val }
         'LogRetainDays' { $LogRetainDays = [int]$val }
     }
 }
@@ -48,10 +51,13 @@ if (-not $BaseDir) {
     exit 1
 }
 
-$DriverDir     = "$BaseDir\drivers"          # 存放 .inf 驱动文件（按型号分子目录）
-$SDIODir       = "$BaseDir\SDIO"             # SDIO 程序目录
+# DataDir 未设置时与 BaseDir 相同（单目录部署模式）
+if (-not $DataDir) { $DataDir = $BaseDir }
+
+$DriverDir     = "$DataDir\drivers"          # .inf 驱动文件（按型号分子目录，持久化）
+$SDIODir       = "$BaseDir\SDIO"             # SDIO 程序目录（随镜像）
 $SDIOScript    = "$BaseDir\auto_printer.txt" # SDIO 脚本文件
-$LogDir        = "$BaseDir\logs"
+$LogDir        = "$DataDir\logs"
 $LogFile       = "$LogDir\install_$(Get-Date -Format 'yyyyMMdd_HHmmss').log"
 
 # ============================================================
@@ -235,6 +241,19 @@ Write-Log "本地安装结果: 成功 $($installed.Count), 失败 $($failed.Coun
 # ============================================================
 if ($failed.Count -gt 0) {
     Write-Log "--- 阶段4: SDIO 脚本模式回退 ---"
+
+    # 分盘部署时，创建 junction 让 SDIO 找到持久化盘上的驱动包
+    if ($DataDir -ne $BaseDir) {
+        $junctionTarget = "$DataDir\SDIO\drivers"
+        $junctionLink   = "$SDIODir\drivers"
+        if (-not (Test-Path $junctionTarget)) {
+            New-Item -ItemType Directory -Path $junctionTarget -Force | Out-Null
+        }
+        if (-not (Test-Path $junctionLink)) {
+            cmd /c mklink /J "$junctionLink" "$junctionTarget" 2>&1 | Out-Null
+            Write-Log "  创建驱动包链接: $junctionLink -> $junctionTarget"
+        }
+    }
 
     $sdioExe = Get-ChildItem -Path $SDIODir -Filter "SDIO_x64*.exe" -ErrorAction SilentlyContinue |
         Sort-Object Name -Descending | Select-Object -First 1
