@@ -28,7 +28,7 @@ if (-not (Test-Path $ConfigFile)) {
     exit 1
 }
 
-$BaseDir       = $null
+$BaseDir       = $PSScriptRoot
 $DataDir       = $null
 $LogRetainDays = 30
 
@@ -40,18 +40,12 @@ foreach ($line in Get-Content $ConfigFile -Encoding UTF8) {
     $key = $parts[0].Trim()
     $val = $parts[1].Trim()
     switch ($key) {
-        'BaseDir'       { $BaseDir       = $val }
         'DataDir'       { $DataDir       = $val }
         'LogRetainDays' { $LogRetainDays = [int]$val }
     }
 }
 
-if (-not $BaseDir) {
-    Write-Error "config.ini 中未配置 BaseDir"
-    exit 1
-}
-
-# DataDir 未设置时与 BaseDir 相同（单目录部署模式）
+# DataDir 未设置时与脚本同目录（单目录部署模式）
 if (-not $DataDir) { $DataDir = $BaseDir }
 
 $DriverDir     = "$DataDir\drivers"          # .inf 驱动文件（按型号分子目录，持久化）

@@ -18,27 +18,17 @@ if (-not (Test-Path $ConfigFile)) {
     exit 1
 }
 
-$BaseDir = $null
+$BaseDir = $PSScriptRoot
 $DataDir = $null
 foreach ($line in Get-Content $ConfigFile -Encoding UTF8) {
     $line = $line.Trim()
     if ($line -eq '' -or $line.StartsWith('#')) { continue }
     $parts = $line -split '=', 2
     if ($parts.Count -ne 2) { continue }
-    $key = $parts[0].Trim()
-    $val = $parts[1].Trim()
-    switch ($key) {
-        'BaseDir' { $BaseDir = $val }
-        'DataDir' { $DataDir = $val }
-    }
+    if ($parts[0].Trim() -eq 'DataDir') { $DataDir = $parts[1].Trim() }
 }
 
-if (-not $BaseDir) {
-    Write-Error "config.ini 中未配置 BaseDir"
-    exit 1
-}
-
-# DataDir 未设置时与 BaseDir 相同
+# DataDir 未设置时与脚本同目录
 if (-not $DataDir) { $DataDir = $BaseDir }
 
 $SourceDir = "$DataDir\drivers"          # .inf 源文件（数据盘）

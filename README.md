@@ -25,32 +25,29 @@ SDIO 本身是一个功能强大的万能驱动安装工具，但默认需要手
 
 ## 快速开始
 
-支持程序和数据分盘部署：`BaseDir`（脚本/程序，随系统镜像）和 `DataDir`（驱动/日志，持久化不被还原）。
-以下示例：脚本放 `C:\PrinterDrivers`，数据放 `D:\PrinterDrivers`。
+脚本自动识别自身所在目录作为程序目录（随系统镜像），只需在 `config.ini` 中配置数据目录 `DataDir`（持久化盘）。
 
 ```powershell
-# 1. 克隆本仓库到目标终端的系统盘（随镜像分发）
+# 1. 克隆本仓库到系统盘（随镜像分发）
 git clone https://github.com/mambo-wang/snappy-driver-installer-origin-autoinstall.git C:\PrinterDrivers
 
-# 2. 编辑 config.ini
-#    BaseDir=C:\PrinterDrivers     ← 脚本和程序目录（系统盘）
-#    DataDir=D:\PrinterDrivers     ← 驱动和日志目录（持久化盘）
+# 2. 编辑 config.ini，设置数据目录（驱动和日志放持久化盘）
+#    DataDir=D:\PrinterDrivers
 
-# 3. 在数据盘放入打印机 .inf 驱动文件（按型号分子目录）
+# 3. 在数据盘放入打印机 .inf 驱动文件
 mkdir D:\PrinterDrivers\drivers\HP_LaserJet_1020
 copy D:\驱动包\HP1020\* D:\PrinterDrivers\drivers\HP_LaserJet_1020\
 
-# 4. 下载 SDIO 并解压到 C:\PrinterDrivers\SDIO\（随镜像）
+# 4. 下载 SDIO 并解压到 C:\PrinterDrivers\SDIO\
 #    从 https://www.glenn.delahoy.com/snappy-driver-installer-origin 下载
 
-# 5. 打包驱动为 SDIO 兼容格式（输出到数据盘）
+# 5. 打包驱动为 SDIO 兼容格式
 powershell -ExecutionPolicy Bypass -File C:\PrinterDrivers\pack_drivers.ps1
 
 # 6. 注册开机自启 + USB插入触发（管理员运行）
 powershell -ExecutionPolicy Bypass -File C:\PrinterDrivers\setup_scheduled_task.ps1
 ```
 
-部署完成后，终端开机会自动检测打印机并安装驱动，用户插入新打印机也会实时响应。
 系统还原时 C 盘从镜像恢复，D 盘的驱动文件和日志不受影响。
 
 ---
@@ -84,7 +81,7 @@ powershell -ExecutionPolicy Bypass -File C:\PrinterDrivers\setup_scheduled_task.
 
 | 文件 | 用途 | 运行时角色 |
 |------|------|-----------|
-| `config.ini` | 配置文件 | 所有脚本从此文件读取 BaseDir 和 DataDir |
+| `config.ini` | 配置文件 | 指定 DataDir（数据目录）和日志保留天数 |
 | `auto_install_printer.ps1` | 主安装脚本 | 每次触发时执行，支持 `-OnInsert` 参数 |
 | `auto_printer.txt` | SDIO 脚本文件 | 阶段4回退时由 SDIO 加载执行 |
 | `pack_drivers.ps1` | 驱动打包工具 | 仅部署阶段使用，将 .inf 目录打成 .7z |
@@ -95,13 +92,13 @@ powershell -ExecutionPolicy Bypass -File C:\PrinterDrivers\setup_scheduled_task.
 
 ## 部署后的目录结构
 
-支持分盘部署，`BaseDir` 和 `DataDir` 由 `config.ini` 指定。以下以 C 盘 / D 盘为例：
+脚本所在目录自动识别为程序目录（无需配置），`DataDir` 由 `config.ini` 指定。
 
-**BaseDir — 系统盘（随镜像分发）**
+**脚本目录 — 系统盘（随镜像分发，路径任意）**
 
 ```
 C:\PrinterDrivers\
-├── config.ini                    ← 配置文件
+├── config.ini                    ← 配置文件（仅配置 DataDir）
 ├── auto_install_printer.ps1      ← 主安装脚本
 ├── auto_printer.txt              ← SDIO 脚本文件
 ├── pack_drivers.ps1              ← 驱动打包工具（仅部署时用）
@@ -119,23 +116,18 @@ D:\PrinterDrivers\
 │   ├── HP_LaserJet_1020\
 │   │   ├── HPLJ1020.inf
 │   │   └── ...
-│   ├── Canon_LBP6230dn\
-│   │   ├── CNXxxx.inf
-│   │   └── ...
-│   └── ...
+│   └── Canon_LBP6230dn\
+│       └── ...
 │
 ├── SDIO\
 │   ├── drivers\                  ← SDIO 驱动包（.7z，由 pack_drivers.ps1 生成）
-│   │   ├── DRP_Printer_HP_LaserJet_1020.7z
-│   │   └── DRP_Printer_Canon_LBP6230dn.7z
 │   └── indexes\                  ← SDIO 索引（自动生成）
 │
 └── logs\                         ← 安装日志（自动生成，超期自动清理）
-    └── install_20260629_083000.log
 ```
 
-> 分盘部署时，脚本会自动创建目录链接（junction），让 SDIO 程序（C 盘）找到数据盘上的驱动包。
-> 如果 `DataDir` 不填或与 `BaseDir` 相同，则所有内容都在同一目录下。
+> 分盘部署时，脚本自动创建目录链接（junction），让 SDIO 程序找到数据盘上的驱动包。
+> 如果 `DataDir` 不填，则所有内容都在脚本同目录下（单目录模式）。
 
 ---
 
@@ -182,7 +174,7 @@ powershell -ExecutionPolicy Bypass -File C:\PrinterDrivers\setup_scheduled_task.
 
 ### 第5步：封装系统镜像
 
-将 `C:\PrinterDrivers`（BaseDir）包含在系统镜像中。`D:\PrinterDrivers`（DataDir）在数据盘上，不受系统还原影响。
+将脚本目录（如 `C:\PrinterDrivers`）包含在系统镜像中。`D:\PrinterDrivers`（DataDir）在数据盘上，不受系统还原影响。
 
 ---
 
@@ -247,11 +239,8 @@ Unregister-ScheduledTask -TaskName "AutoInstallPrinterDriver_OnInsert" -Confirm:
 所有配置集中在 `config.ini` 文件中（与脚本同目录），格式为 `key=value`，`#` 开头的行为注释。
 
 ```ini
-# 脚本和程序目录（随系统镜像分发，通常在 C 盘）
-BaseDir=C:\PrinterDrivers
-
-# 数据目录（驱动文件、日志等运行时数据，通常在非系统盘，不被还原）
-# 留空或不填则与 BaseDir 相同
+# 数据目录（驱动文件、SDIO驱动包、日志等运行时数据，通常在非系统盘，不被还原）
+# 留空或不填则与脚本同目录（单目录模式）
 DataDir=D:\PrinterDrivers
 
 # 日志保留天数
@@ -260,17 +249,16 @@ LogRetainDays=30
 
 | 配置项 | 默认值 | 说明 |
 |--------|--------|------|
-| `BaseDir` | 无（必填） | 脚本和程序目录。存放 .ps1 脚本、config.ini、auto_printer.txt 和 SDIO 程序。随系统镜像分发 |
-| `DataDir` | 与 BaseDir 相同 | 数据目录。存放 drivers\（.inf 源文件）、SDIO\drivers\（.7z 驱动包）和 logs\。推荐指向非系统盘 |
+| `DataDir` | 脚本同目录 | 数据目录。存放 drivers\（.inf 源文件）、SDIO\drivers\（.7z 驱动包）和 logs\。推荐指向非系统盘 |
 | `LogRetainDays` | `30` | 日志保留天数，超期自动清理 |
 
-> **分盘部署**：BaseDir 和 DataDir 指向不同盘时，脚本自动创建目录链接（junction），让 SDIO 程序（BaseDir）找到数据盘上的驱动包（DataDir）。无需手动配置。
+> 脚本所在目录无需配置，自动识别。只需设置 `DataDir` 即可实现分盘部署。
 
 ---
 
 ## 注意事项
 
-1. **系统还原**：`BaseDir`（如 `C:\PrinterDrivers`）随系统镜像恢复；`DataDir`（如 `D:\PrinterDrivers`）在数据盘上，不受还原影响。还原后开机即可自动工作，无需重新部署驱动。
+1. **系统还原**：脚本目录（如 `C:\PrinterDrivers`）随系统镜像恢复；`DataDir`（如 `D:\PrinterDrivers`）在数据盘上，不受还原影响。还原后开机即可自动工作，无需重新部署驱动。
 
 2. **PowerShell 执行策略**：系统镜像中需预设：
    ```powershell
