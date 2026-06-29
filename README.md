@@ -234,25 +234,82 @@ Unregister-ScheduledTask -TaskName "AutoInstallPrinterDriver_OnInsert" -Confirm:
 
 ---
 
-## 配置项
+## 配置文件
 
-所有配置集中在 `config.ini` 文件中（与脚本同目录），格式为 `key=value`，`#` 开头的行为注释。
+`config.ini` 与脚本文件放在同一目录下（如 `C:\PrinterDrivers\config.ini`），脚本运行时自动读取。
+
+### 文件格式
+
+标准 INI 格式，每行一个 `key=value`，`#` 开头的行为注释，空行自动忽略。
+
+### 完整示例
 
 ```ini
-# 数据目录（驱动文件、SDIO驱动包、日志等运行时数据，通常在非系统盘，不被还原）
-# 留空或不填则与脚本同目录（单目录模式）
+# 数据目录（驱动文件、SDIO驱动包、日志等运行时数据）
+# 推荐指向非系统盘，系统还原时不受影响
+# 留空或删除此行 = 与脚本同目录（单目录模式）
 DataDir=D:\PrinterDrivers
 
-# 日志保留天数
+# 日志保留天数（超过此天数的日志自动删除）
 LogRetainDays=30
 ```
 
-| 配置项 | 默认值 | 说明 |
-|--------|--------|------|
-| `DataDir` | 脚本同目录 | 数据目录。存放 drivers\（.inf 源文件）、SDIO\drivers\（.7z 驱动包）和 logs\。推荐指向非系统盘 |
-| `LogRetainDays` | `30` | 日志保留天数，超期自动清理 |
+### 配置项说明
 
-> 脚本所在目录无需配置，自动识别。只需设置 `DataDir` 即可实现分盘部署。
+| 配置项 | 是否必填 | 默认值 | 说明 |
+|--------|----------|--------|------|
+| `DataDir` | 否 | 脚本同目录 | 运行时数据的存放目录。该目录下会自动创建 `drivers\`（.inf 驱动源文件）、`SDIO\drivers\`（.7z 驱动包）、`SDIO\indexes\`（SDIO 索引）和 `logs\`（安装日志） |
+| `LogRetainDays` | 否 | `30` | 日志保留天数，每次运行时自动清理超期日志 |
+
+### 两种部署模式
+
+**单目录模式**（不填 `DataDir` 或删除该行）— 所有内容都在脚本目录下，适合测试或不需要系统还原的环境：
+
+```ini
+# config.ini
+LogRetainDays=30
+```
+
+```
+C:\PrinterDrivers\        ← 脚本目录（自动识别）
+├── config.ini
+├── auto_install_printer.ps1
+├── SDIO\
+│   ├── SDIO_x64_R830.exe
+│   ├── drivers\          ← 驱动包也在这里
+│   └── indexes\
+├── drivers\              ← .inf 源文件也在这里
+└── logs\                 ← 日志也在这里
+```
+
+**分盘模式**（推荐，填写 `DataDir` 指向非系统盘）— 脚本和程序随系统镜像分发，驱动和日志持久化：
+
+```ini
+# config.ini
+DataDir=D:\PrinterDrivers
+LogRetainDays=30
+```
+
+```
+C:\PrinterDrivers\        ← 脚本目录（自动识别，随镜像）
+├── config.ini
+├── auto_install_printer.ps1
+├── SDIO\
+│   └── SDIO_x64_R830.exe
+│
+D:\PrinterDrivers\        ← DataDir（持久化盘）
+├── drivers\              ← .inf 驱动源文件
+├── SDIO\
+│   ├── drivers\          ← .7z 驱动包
+│   └── indexes\          ← SDIO 索引
+└── logs\                 ← 安装日志
+```
+
+> 分盘模式下，脚本首次运行时自动创建目录链接（junction），让 C 盘的 SDIO 程序透明地访问 D 盘的驱动包，无需手动操作。
+
+### 脚本目录的自动识别
+
+脚本目录（存放 .ps1、config.ini、auto_printer.txt、SDIO 程序）不需要在配置文件中指定，脚本通过 `$PSScriptRoot` 自动获取自身所在路径。这意味着克隆或复制到任意位置即可工作，只要 config.ini 与脚本在同一目录下。
 
 ---
 
