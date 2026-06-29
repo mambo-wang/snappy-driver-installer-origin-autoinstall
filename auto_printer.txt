@@ -1,0 +1,35 @@
+#
+# SDIO 自动安装打印机驱动脚本
+# 由 auto_install_printer.ps1 在阶段4调用
+# 用法: SDIO_x64_Rxxx.exe /script:auto_printer.txt /nogui
+#
+
+echo ==============================
+echo 打印机驱动自动安装 (SDIO)
+echo ==============================
+echo
+
+# 开启安装（默认是测试模式）
+enableinstall on
+
+# 详细日志
+verbose 384
+logging on
+
+# 初始化：扫描设备 + 加载索引
+echo 正在扫描设备和加载索引...
+init
+
+# 选择缺失的驱动（会安装所有缺失驱动，不仅打印机）
+# 如果想只装打印机，把驱动包命名为含 "printer" 关键字，然后改为：
+#   select missing printer
+echo 选择缺失驱动...
+select missing
+
+# 执行安装
+echo 开始安装...
+install
+
+# 记录安装结果
+echo 安装完成
+end
