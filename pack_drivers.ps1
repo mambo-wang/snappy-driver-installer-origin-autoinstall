@@ -3,13 +3,34 @@
 .SYNOPSIS
     将裸 .inf 驱动目录打包为 SDIO 兼容的 .7z 驱动包
 .DESCRIPTION
-    遍历 C:\PrinterDrivers\drivers\ 下的每个子目录，
+    遍历脚本所在目录下 drivers\ 的每个子目录，
     将其打包为 .7z 文件放入 SDIO 的 drivers 目录。
 .NOTES
     前提：SDIO 已安装，7z.exe 可用（SDIO 自带或系统已装）
 #>
 
-$BaseDir   = "C:\PrinterDrivers"
+# 读取配置文件
+$ConfigFile = "$PSScriptRoot\config.ini"
+if (-not (Test-Path $ConfigFile)) {
+    Write-Error "配置文件不存在: $ConfigFile"
+    Write-Host "请确保 config.ini 与本脚本在同一目录下"
+    exit 1
+}
+
+$BaseDir = $null
+foreach ($line in Get-Content $ConfigFile -Encoding UTF8) {
+    $line = $line.Trim()
+    if ($line -eq '' -or $line.StartsWith('#')) { continue }
+    $parts = $line -split '=', 2
+    if ($parts.Count -ne 2) { continue }
+    if ($parts[0].Trim() -eq 'BaseDir') { $BaseDir = $parts[1].Trim() }
+}
+
+if (-not $BaseDir) {
+    Write-Error "config.ini 中未配置 BaseDir"
+    exit 1
+}
+
 $SourceDir = "$BaseDir\drivers"
 $SDIODir   = "$BaseDir\SDIO"
 $OutputDir = "$SDIODir\drivers"  # SDIO 的驱动包目录

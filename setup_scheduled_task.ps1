@@ -14,12 +14,34 @@
     删除插入触发任务: Unregister-ScheduledTask -TaskName "AutoInstallPrinterDriver_OnInsert" -Confirm:$false
 #>
 
-$ScriptPath = "C:\PrinterDrivers\auto_install_printer.ps1"
+# 读取配置文件
+$ConfigFile = "$PSScriptRoot\config.ini"
+if (-not (Test-Path $ConfigFile)) {
+    Write-Error "配置文件不存在: $ConfigFile"
+    Write-Host "请确保 config.ini 与本脚本在同一目录下"
+    exit 1
+}
+
+$BaseDir = $null
+foreach ($line in Get-Content $ConfigFile -Encoding UTF8) {
+    $line = $line.Trim()
+    if ($line -eq '' -or $line.StartsWith('#')) { continue }
+    $parts = $line -split '=', 2
+    if ($parts.Count -ne 2) { continue }
+    if ($parts[0].Trim() -eq 'BaseDir') { $BaseDir = $parts[1].Trim() }
+}
+
+if (-not $BaseDir) {
+    Write-Error "config.ini 中未配置 BaseDir"
+    exit 1
+}
+
+$ScriptPath = Join-Path $BaseDir "auto_install_printer.ps1"
 
 # 检查脚本是否存在
 if (-not (Test-Path $ScriptPath)) {
-    Write-Error "脚本不存在: $ScriptPath"
-    Write-Host "请先将 auto_install_printer.ps1 放到 C:\PrinterDrivers\"
+    Write-Error "主安装脚本不存在: $ScriptPath"
+    Write-Host "请确保 auto_install_printer.ps1 已部署到 config.ini 指定的 BaseDir 目录下"
     exit 1
 }
 

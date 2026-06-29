@@ -25,22 +25,28 @@ SDIO 本身是一个功能强大的万能驱动安装工具，但默认需要手
 
 ## 快速开始
 
+所有路径通过 `config.ini` 配置文件指定，脚本本身不绑定任何固定路径。
+以下示例将脚本部署到 `D:\PrinterDrivers`（推荐非系统盘，避免系统还原时被覆盖）。
+
 ```powershell
-# 1. 克隆本仓库到目标终端
-git clone https://github.com/mambo-wang/snappy-driver-installer-origin-autoinstall.git C:\PrinterDrivers
+# 1. 克隆本仓库到目标终端（盘符路径自选）
+git clone https://github.com/mambo-wang/snappy-driver-installer-origin-autoinstall.git D:\PrinterDrivers
 
-# 2. 放入打印机 .inf 驱动文件（按型号分子目录）
-mkdir C:\PrinterDrivers\drivers\HP_LaserJet_1020
-copy D:\驱动包\HP1020\* C:\PrinterDrivers\drivers\HP_LaserJet_1020\
+# 2. 编辑 config.ini，设置部署根目录
+#    BaseDir=D:\PrinterDrivers    （默认即为克隆路径，按需修改）
 
-# 3. 下载 SDIO 并解压到 C:\PrinterDrivers\SDIO\
+# 3. 放入打印机 .inf 驱动文件（按型号分子目录）
+mkdir D:\PrinterDrivers\drivers\HP_LaserJet_1020
+copy D:\驱动包\HP1020\* D:\PrinterDrivers\drivers\HP_LaserJet_1020\
+
+# 4. 下载 SDIO 并解压到 D:\PrinterDrivers\SDIO\
 #    从 https://www.glenn.delahoy.com/snappy-driver-installer-origin 下载
 
-# 4. 打包驱动为 SDIO 兼容格式
-powershell -ExecutionPolicy Bypass -File C:\PrinterDrivers\pack_drivers.ps1
+# 5. 打包驱动为 SDIO 兼容格式
+powershell -ExecutionPolicy Bypass -File D:\PrinterDrivers\pack_drivers.ps1
 
-# 5. 注册开机自启 + USB插入触发（管理员运行）
-powershell -ExecutionPolicy Bypass -File C:\PrinterDrivers\setup_scheduled_task.ps1
+# 6. 注册开机自启 + USB插入触发（管理员运行）
+powershell -ExecutionPolicy Bypass -File D:\PrinterDrivers\setup_scheduled_task.ps1
 ```
 
 部署完成后，终端开机会自动检测打印机并安装驱动，用户插入新打印机也会实时响应。
@@ -76,6 +82,7 @@ powershell -ExecutionPolicy Bypass -File C:\PrinterDrivers\setup_scheduled_task.
 
 | 文件 | 用途 | 运行时角色 |
 |------|------|-----------|
+| `config.ini` | 配置文件 | 所有脚本从此文件读取 BaseDir 等路径 |
 | `auto_install_printer.ps1` | 主安装脚本 | 每次触发时执行，支持 `-OnInsert` 参数 |
 | `auto_printer.txt` | SDIO 脚本文件 | 阶段4回退时由 SDIO 加载执行 |
 | `pack_drivers.ps1` | 驱动打包工具 | 仅部署阶段使用，将 .inf 目录打成 .7z |
@@ -86,10 +93,12 @@ powershell -ExecutionPolicy Bypass -File C:\PrinterDrivers\setup_scheduled_task.
 
 ## 部署后的目录结构
 
-部署到终端后，完整结构如下（仓库文件 + 驱动文件 + SDIO 程序）：
+部署到终端后，完整结构如下（仓库文件 + 驱动文件 + SDIO 程序）。
+`BaseDir` 由 `config.ini` 指定，以下以 `D:\PrinterDrivers` 为例：
 
 ```
-C:\PrinterDrivers\
+D:\PrinterDrivers\
+├── config.ini                    ← 配置文件（指定 BaseDir、LogRetainDays）
 ├── auto_install_printer.ps1
 ├── auto_printer.txt
 ├── pack_drivers.ps1
@@ -125,23 +134,23 @@ C:\PrinterDrivers\
 将每个打印机型号的驱动文件（.inf 及配套的 .dll/.sys/.gpd 等）放到 `drivers\` 下的独立子目录：
 
 ```powershell
-mkdir C:\PrinterDrivers\drivers\HP_LaserJet_1020
-copy D:\驱动包\HP1020\* C:\PrinterDrivers\drivers\HP_LaserJet_1020\
+mkdir D:\PrinterDrivers\drivers\HP_LaserJet_1020
+copy D:\驱动包\HP1020\* D:\PrinterDrivers\drivers\HP_LaserJet_1020\
 
-mkdir C:\PrinterDrivers\drivers\Canon_LBP6230dn
-copy D:\驱动包\Canon\* C:\PrinterDrivers\drivers\Canon_LBP6230dn\
+mkdir D:\PrinterDrivers\drivers\Canon_LBP6230dn
+copy D:\驱动包\Canon\* D:\PrinterDrivers\drivers\Canon_LBP6230dn\
 ```
 
 ### 第2步：部署 SDIO
 
-从 https://www.glenn.delahoy.com/snappy-driver-installer-origin 下载 SDIO，解压到 `C:\PrinterDrivers\SDIO\`。
+从 https://www.glenn.delahoy.com/snappy-driver-installer-origin 下载 SDIO，解压到 `D:\PrinterDrivers\SDIO\`。
 
 ### 第3步：打包 SDIO 驱动包
 
 将裸 .inf 目录打包为 SDIO 兼容的 .7z 驱动包：
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File C:\PrinterDrivers\pack_drivers.ps1
+powershell -ExecutionPolicy Bypass -File D:\PrinterDrivers\pack_drivers.ps1
 ```
 
 ### 第4步：注册任务计划
@@ -149,7 +158,7 @@ powershell -ExecutionPolicy Bypass -File C:\PrinterDrivers\pack_drivers.ps1
 以管理员身份运行：
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File C:\PrinterDrivers\setup_scheduled_task.ps1
+powershell -ExecutionPolicy Bypass -File D:\PrinterDrivers\setup_scheduled_task.ps1
 ```
 
 此脚本注册两个任务计划，并自动启用插入触发所需的事件日志通道：
@@ -161,7 +170,7 @@ powershell -ExecutionPolicy Bypass -File C:\PrinterDrivers\setup_scheduled_task.
 
 ### 第5步：封装系统镜像（可选）
 
-如果终端使用系统还原方案，将 `C:\PrinterDrivers` 包含在系统镜像中，或配置为还原时的保留目录。
+如果终端使用系统还原方案，将 `D:\PrinterDrivers` 包含在系统镜像中，或配置为还原时的保留目录。
 
 ---
 
@@ -190,7 +199,7 @@ schtasks /Change /TN "AutoInstallPrinterDriver" /DISABLE
 schtasks /Change /TN "AutoInstallPrinterDriver" /ENABLE
 
 # 查看最新日志
-Get-ChildItem C:\PrinterDrivers\logs -Filter "install_*.log" | Sort LastWriteTime -Desc | Select -First 1 | Get-Content
+Get-ChildItem D:\PrinterDrivers\logs -Filter "install_*.log" | Sort LastWriteTime -Desc | Select -First 1 | Get-Content
 
 # 查看当前连接的打印机
 Get-PnpDevice -Class Printer | Select FriendlyName, InstanceId
@@ -202,8 +211,8 @@ Unregister-ScheduledTask -TaskName "AutoInstallPrinterDriver_OnInsert" -Confirm:
 
 ### 添加新打印机型号
 
-1. 将驱动文件放到 `C:\PrinterDrivers\drivers\新打印机型号\`
-2. 重新运行打包：`powershell -ExecutionPolicy Bypass -File C:\PrinterDrivers\pack_drivers.ps1`
+1. 将驱动文件放到 `D:\PrinterDrivers\drivers\新打印机型号\`
+2. 重新运行打包：`powershell -ExecutionPolicy Bypass -File D:\PrinterDrivers\pack_drivers.ps1`
 3. 更新系统镜像（如适用）
 
 ---
@@ -223,20 +232,30 @@ Unregister-ScheduledTask -TaskName "AutoInstallPrinterDriver_OnInsert" -Confirm:
 
 ## 配置项
 
-编辑 `auto_install_printer.ps1` 顶部配置区：
+所有配置集中在 `config.ini` 文件中（与脚本同目录），格式为 `key=value`，`#` 开头的行为注释。
 
-| 变量 | 默认值 | 说明 |
-|------|--------|------|
-| `$BaseDir` | `C:\PrinterDrivers` | 方案根目录 |
-| `$DriverDir` | `$BaseDir\drivers` | 裸 .inf 驱动目录 |
-| `$SDIODir` | `$BaseDir\SDIO` | SDIO 程序目录 |
-| `$LogRetainDays` | `30` | 日志保留天数 |
+```ini
+# 部署根目录（驱动文件、SDIO程序、日志等均在此目录下）
+# 推荐指向非系统盘，避免系统还原时被覆盖
+BaseDir=D:\PrinterDrivers
+
+# 日志保留天数
+LogRetainDays=30
+```
+
+| 配置项 | 默认值 | 说明 |
+|--------|--------|------|
+| `BaseDir` | 无（必填） | 方案根目录，驱动文件、SDIO 程序、日志、auto_printer.txt 均在此目录下 |
+| `LogRetainDays` | `30` | 日志保留天数，超期自动清理 |
+
+> **注意**：`BaseDir` 下的子目录结构（`drivers\`、`SDIO\`、`logs\`）是固定的，不可单独配置。
+> 如需更细粒度的路径控制，可编辑 `auto_install_printer.ps1` 中的 `$DriverDir`、`$SDIODir` 等变量。
 
 ---
 
 ## 注意事项
 
-1. **系统还原**：`C:\PrinterDrivers` 需在还原时被保留。如果整个 C 盘还原，需放到不受影响的分区或在还原脚本中重新部署。
+1. **系统还原**：`config.ini` 中的 `BaseDir` 目录需在还原时被保留。推荐指向非系统盘（如 D 盘），避免系统还原时丢失。如果必须在系统盘，需在还原脚本中重新部署。
 
 2. **PowerShell 执行策略**：系统镜像中需预设：
    ```powershell

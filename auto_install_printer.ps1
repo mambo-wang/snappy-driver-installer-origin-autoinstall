@@ -7,7 +7,8 @@
     失败时回退到 SDIO 脚本模式安装，仍失败则弹出 SDIO GUI 供手动操作。
     支持 -OnInsert 参数，由 USB 设备插入事件触发时使用。
 .NOTES
-    放置路径: C:\PrinterDrivers\auto_install_printer.ps1
+    所有路径由 config.ini 配置文件指定（BaseDir），部署位置灵活
+    config.ini 需与本脚本放在同一目录下
     需要管理员权限运行
 #>
 
@@ -17,17 +18,41 @@ param(
 )
 
 # ============================================================
-# 配置区
+# 读取配置文件（config.ini 与本脚本同目录）
 # ============================================================
-$BaseDir       = "C:\PrinterDrivers"
+$ConfigFile = "$PSScriptRoot\config.ini"
+if (-not (Test-Path $ConfigFile)) {
+    Write-Error "配置文件不存在: $ConfigFile"
+    Write-Host "请确保 config.ini 与本脚本在同一目录下"
+    exit 1
+}
+
+$BaseDir       = $null
+$LogRetainDays = 30
+
+foreach ($line in Get-Content $ConfigFile -Encoding UTF8) {
+    $line = $line.Trim()
+    if ($line -eq '' -or $line.StartsWith('#')) { continue }
+    $parts = $line -split '=', 2
+    if ($parts.Count -ne 2) { continue }
+    $key = $parts[0].Trim()
+    $val = $parts[1].Trim()
+    switch ($key) {
+        'BaseDir'       { $BaseDir       = $val }
+        'LogRetainDays' { $LogRetainDays = [int]$val }
+    }
+}
+
+if (-not $BaseDir) {
+    Write-Error "config.ini 中未配置 BaseDir"
+    exit 1
+}
+
 $DriverDir     = "$BaseDir\drivers"          # 存放 .inf 驱动文件（按型号分子目录）
 $SDIODir       = "$BaseDir\SDIO"             # SDIO 程序目录
 $SDIOScript    = "$BaseDir\auto_printer.txt" # SDIO 脚本文件
 $LogDir        = "$BaseDir\logs"
 $LogFile       = "$LogDir\install_$(Get-Date -Format 'yyyyMMdd_HHmmss').log"
-
-# 清理多少天前的日志
-$LogRetainDays = 30
 
 # ============================================================
 # 日志函数
